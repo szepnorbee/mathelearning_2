@@ -106,8 +106,13 @@
     <!-- Főmenü Nézet -->
     <div id="menu-screen" class="w-full max-w-md flex flex-col items-center bounce z-10">
         <h1 class="text-5xl font-black text-center text-purple-600 mb-2 drop-shadow-md">Matek Kaland!</h1>
-        <div class="bg-yellow-200 text-yellow-800 px-4 py-2 rounded-xl font-bold mb-4 shadow-sm border-2 border-yellow-400">
-            🏆 Rekordod: <span id="menu-high-score">0</span> pont
+        <div class="flex gap-2 mb-4 w-full justify-center">
+            <div class="bg-yellow-200 text-yellow-800 px-4 py-2 rounded-xl font-bold shadow-sm border-2 border-yellow-400 text-center flex-1">
+                🏆 Rekord: <span id="menu-high-score">0</span>
+            </div>
+            <div class="bg-orange-200 text-orange-800 px-4 py-2 rounded-xl font-bold shadow-sm border-2 border-orange-400 text-center flex-1">
+                🪙 Érmék: <span id="menu-coins">0</span>
+            </div>
         </div>
         <p class="text-xl text-center text-gray-600 mb-8 font-bold">Válaszd ki, mit gyakoroljunk! 🚀</p>
 
@@ -127,6 +132,11 @@
         </div>
         <button onclick="startGame('mix')" class="btn-3d bg-purple-500 text-white rounded-2xl p-4 text-2xl font-bold border-b-8 border-purple-700 active:border-b-0 mt-4 w-full flex justify-center items-center gap-2">
             <span>🎲</span> Mindent bele! <span>🎲</span>
+        </button>
+
+        <!-- Dino Futás Gomb -->
+        <button id="menu-dino-btn" onclick="showDinoScreen()" class="btn-3d bg-gray-400 text-white rounded-2xl p-4 text-2xl font-bold border-b-8 border-gray-600 active:border-b-0 mt-4 w-full flex justify-center items-center gap-2 opacity-50 cursor-not-allowed transition-all">
+            <span>🦖</span> Dino Futás (100 🪙)
         </button>
     </div>
 
@@ -178,6 +188,30 @@
 
     </div>
 
+    <!-- Dino Játék Nézet -->
+    <div id="dino-screen" class="w-full max-w-md hidden flex-col items-center h-full max-h-[800px] z-10 pt-10 sm:pt-0">
+        <div class="flex justify-between items-center w-full mb-4">
+            <button onclick="exitDino()" class="btn-3d bg-gray-200 text-gray-700 p-2 rounded-xl border-b-4 border-gray-400 active:border-b-0 text-lg font-bold">
+                ⬅️ Vissza
+            </button>
+            <div class="bg-indigo-300 text-indigo-900 font-bold px-4 py-2 rounded-xl text-xl border-b-4 border-indigo-500 flex items-center gap-2 shadow-sm">
+                🦖 Táv: <span id="dino-score-display">0</span>
+            </div>
+        </div>
+        
+        <div class="relative w-full aspect-[2/1] bg-blue-50 rounded-2xl overflow-hidden border-4 border-gray-400 shadow-xl mt-4" id="dino-container">
+            <canvas id="dino-canvas" class="block w-full h-full touch-none"></canvas>
+            
+            <div id="dino-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-60 text-white p-4 text-center z-20">
+                <p class="text-3xl font-black mb-2">Dino Futás</p>
+                <p class="text-lg font-bold mb-4">Ára: 100 🪙</p>
+                <button onclick="initDinoGame()" id="dino-start-btn" class="btn-3d bg-green-500 px-6 py-3 rounded-xl text-xl font-black border-b-4 border-green-700 hover:bg-green-400">Indítás!</button>
+                <p id="dino-msg" class="text-red-300 font-bold mt-2 hidden">Nincs elég érméd!</p>
+            </div>
+        </div>
+        <p class="text-gray-600 font-bold mt-6 text-center text-lg bg-white bg-opacity-70 px-4 py-2 rounded-xl">Koppints a játékhoz vagy nyomj szóközt az ugráshoz!</p>
+    </div>
+
     <!-- Game Over Képernyő (Modal) -->
     <div id="game-over-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
         <div id="game-over-content" class="bg-white rounded-[2rem] p-8 max-w-sm w-full flex flex-col items-center text-center shadow-2xl border-8 border-purple-400 relative">
@@ -216,6 +250,7 @@
         // --- TÁROLÁS ÉS FIREBASE ---
         let db, auth, user, userId;
         let highScore = 0;
+        let coins = 0; // Új valuta a minijátékokhoz
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'matek-kaland-app';
 
         async function initFirebase() {
@@ -250,18 +285,24 @@
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     highScore = docSnap.data().highScore || 0;
+                    coins = docSnap.data().coins || 0;
                     document.getElementById('menu-high-score').textContent = highScore;
+                    document.getElementById('menu-coins').textContent = coins;
+                    updateMenuDinoBtn();
                 }
             } catch(e) { console.error("Hiba a mentés betöltésekor:", e); }
         }
 
-        async function saveHighScore(newScore) {
-            if (!user || !db || newScore <= highScore) return;
-            highScore = newScore;
+        async function saveStats(newScore) {
+            if (!user || !db) return;
+            if (newScore > highScore) highScore = newScore;
+            
             document.getElementById('menu-high-score').textContent = highScore;
+            document.getElementById('menu-coins').textContent = coins;
+            
             try {
                 const docRef = doc(db, 'artifacts', appId, 'users', userId, 'math_game', 'stats');
-                await setDoc(docRef, { highScore: highScore }, { merge: true });
+                await setDoc(docRef, { highScore: highScore, coins: coins }, { merge: true });
             } catch(e) { console.error("Hiba a mentéskor:", e); }
         }
 
@@ -342,6 +383,14 @@
                 gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.0);
                 oscillator.start();
                 oscillator.stop(audioCtx.currentTime + 1.0);
+            } else if (type === 'jump') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(400, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.1);
             }
         }
 
@@ -382,6 +431,9 @@
         window.startGame = startGame;
         window.hideGameOverAndShowMenu = hideGameOverAndShowMenu;
         window.restartGame = restartGame;
+        window.showDinoScreen = showDinoScreen;
+        window.exitDino = exitDino;
+        window.initDinoGame = initDinoGame;
 
         const correctMessages = ["Szuper!", "Zseni vagy!", "Hatalmas!", "Így kell ezt!", "Bajnok! 🏆"];
         const wrongMessages = ["Hoppá!", "Próbáld újra!", "Majdnem...", "Jaj ne! 💔"];
@@ -436,8 +488,21 @@
             }
         };
 
+        function updateMenuDinoBtn() {
+            const dinoBtn = document.getElementById('menu-dino-btn');
+            if (!dinoBtn) return;
+            if (coins >= 100) {
+                dinoBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-gray-400', 'border-gray-600');
+                dinoBtn.classList.add('bg-indigo-500', 'border-indigo-700');
+            } else {
+                dinoBtn.classList.add('opacity-50', 'cursor-not-allowed', 'bg-gray-400', 'border-gray-600');
+                dinoBtn.classList.remove('bg-indigo-500', 'border-indigo-700');
+            }
+        }
+
         function showMenu() {
-            saveHighScore(score);
+            saveStats(score);
+            updateMenuDinoBtn();
             gameScreen.classList.add('hidden');
             gameScreen.classList.remove('flex');
             menuScreen.classList.remove('hidden');
@@ -600,6 +665,7 @@
             if (selected === correct) {
                 playSound('success');
                 score += 10;
+                coins += 10; // Jutalom érme
                 questionsInLevel++;
                 updateScoreDisplay();
                 updateProgressDisplay();
@@ -644,7 +710,7 @@
                 } else {
                     // Game Over Logika Modal használatával
                     playSound('gameover');
-                    saveHighScore(score);
+                    saveStats(score);
                     showGameOverModal();
                 }
             }
@@ -718,6 +784,191 @@
             progressBar.style.width = `${percentage}%`;
         }
 
+        // --- DINO JÁTÉK LOGIKA ---
+        const dinoCanvas = document.getElementById('dino-canvas');
+        const dinoCtx = dinoCanvas ? dinoCanvas.getContext('2d') : null;
+        let dinoReqId;
+        let isDinoPlaying = false;
+        let d_score = 0;
+        let d_frames = 0;
+        let d_speed = 5;
+        let dino = { x: 50, y: 200, w: 40, h: 40, dy: 0, gravity: 0.6, jumpPower: -11, isGrounded: false };
+        let obstacles = [];
+
+        function showDinoScreen() {
+            if (coins < 100) return;
+            
+            menuScreen.classList.add('hidden');
+            menuScreen.classList.remove('flex', 'bounce');
+            document.getElementById('dino-screen').classList.remove('hidden');
+            document.getElementById('dino-screen').classList.add('flex', 'bounce');
+            
+            if (dinoCanvas) {
+                dinoCanvas.width = 600;
+                dinoCanvas.height = 300;
+                drawDinoInitial();
+            }
+            document.getElementById('dino-overlay').classList.remove('hidden');
+            document.getElementById('dino-msg').classList.add('hidden');
+            document.getElementById('dino-overlay').innerHTML = `
+                <p class="text-3xl font-black mb-2">Dino Futás</p>
+                <p class="text-lg font-bold mb-4">Ára: 100 🪙</p>
+                <button onclick="initDinoGame()" id="dino-start-btn" class="btn-3d bg-green-500 px-6 py-3 rounded-xl text-xl font-black border-b-4 border-green-700 hover:bg-green-400">Indítás!</button>
+                <p id="dino-msg" class="text-red-300 font-bold mt-2 hidden">Nincs elég érméd!</p>
+            `;
+        }
+
+        function exitDino() {
+            cancelAnimationFrame(dinoReqId);
+            isDinoPlaying = false;
+            document.getElementById('dino-screen').classList.add('hidden');
+            document.getElementById('dino-screen').classList.remove('flex', 'bounce');
+            showMenu();
+        }
+
+        function drawDinoInitial() {
+            if (!dinoCtx) return;
+            dinoCtx.clearRect(0, 0, dinoCanvas.width, dinoCanvas.height);
+            dinoCtx.fillStyle = '#65a30d'; 
+            dinoCtx.fillRect(0, 260, dinoCanvas.width, 40);
+            
+            // Dínó tükrözése vízszintesen
+            dinoCtx.save();
+            dinoCtx.font = '50px Arial';
+            dinoCtx.scale(-1, 1);
+            dinoCtx.fillText('🦖', -100, 250); // -50 (eredeti x) - 50 (karakter szélesség)
+            dinoCtx.restore();
+        }
+
+        function initDinoGame() {
+            if (coins < 100) {
+                document.getElementById('dino-msg').classList.remove('hidden');
+                return;
+            }
+            
+            coins -= 100;
+            saveStats(score); 
+            document.getElementById('menu-coins').textContent = coins;
+            
+            document.getElementById('dino-overlay').classList.add('hidden');
+            
+            d_score = 0;
+            d_frames = 0;
+            d_speed = 6;
+            dino = { x: 50, y: 200, w: 40, h: 40, dy: 0, gravity: 0.6, jumpPower: -13, isGrounded: false };
+            obstacles = [];
+            isDinoPlaying = true;
+            
+            document.getElementById('dino-score-display').textContent = d_score;
+            
+            if (!isMuted && audioCtx.state === 'suspended') audioCtx.resume();
+            
+            dinoLoop();
+        }
+
+        function dinoJump() {
+            if (!isDinoPlaying) return;
+            if (dino.isGrounded) {
+                dino.dy = dino.jumpPower;
+                dino.isGrounded = false;
+                playSound('jump');
+            }
+        }
+
+        if (dinoCanvas) {
+            dinoCanvas.addEventListener('touchstart', (e) => {
+                if (isDinoPlaying) {
+                    e.preventDefault();
+                    dinoJump();
+                }
+            }, {passive: false});
+            dinoCanvas.addEventListener('mousedown', (e) => {
+                if (isDinoPlaying) dinoJump();
+            });
+        }
+        
+        window.addEventListener('keydown', (e) => {
+            if ((e.code === 'Space' || e.code === 'ArrowUp') && isDinoPlaying) {
+                e.preventDefault();
+                dinoJump();
+            }
+        });
+
+        function dinoLoop() {
+            if (!isDinoPlaying) return;
+            
+            dinoCtx.clearRect(0, 0, dinoCanvas.width, dinoCanvas.height);
+            
+            dino.dy += dino.gravity;
+            dino.y += dino.dy;
+            
+            if (dino.y >= 220) {
+                dino.y = 220;
+                dino.dy = 0;
+                dino.isGrounded = true;
+            }
+            
+            // Generate obstacles
+            if (d_frames % Math.floor(Math.random() * 50 + 70) === 0) {
+                obstacles.push({ x: dinoCanvas.width, y: 220, w: 30, h: 40 });
+            }
+            
+            // Ground
+            dinoCtx.fillStyle = '#65a30d'; 
+            dinoCtx.fillRect(0, 260, dinoCanvas.width, 40);
+            
+            // Obstacles & Collision
+            for (let i = 0; i < obstacles.length; i++) {
+                let obs = obstacles[i];
+                obs.x -= d_speed;
+                
+                dinoCtx.font = '40px Arial';
+                dinoCtx.fillText('🌵', obs.x, obs.y + 35);
+                
+                // Hitbox detection (adjusted slightly for emoji spacing)
+                if (
+                    dino.x + 10 < obs.x + obs.w - 10 &&
+                    dino.x + dino.w - 10 > obs.x + 10 &&
+                    dino.y + 10 < obs.y + obs.h - 5 &&
+                    dino.y + dino.h - 10 > obs.y + 10
+                ) {
+                    gameOverDino();
+                    return;
+                }
+            }
+            
+            obstacles = obstacles.filter(obs => obs.x + obs.w > 0);
+            
+            // Dínó tükrözése vízszintesen a futás közben is
+            dinoCtx.save();
+            dinoCtx.font = '50px Arial';
+            dinoCtx.scale(-1, 1);
+            dinoCtx.fillText('🦖', -dino.x - 50, dino.y + 40);
+            dinoCtx.restore();
+            
+            if (d_frames % 10 === 0) {
+                d_score++;
+                document.getElementById('dino-score-display').textContent = d_score;
+                if (d_score % 100 === 0) d_speed += 0.5;
+            }
+            
+            d_frames++;
+            dinoReqId = requestAnimationFrame(dinoLoop);
+        }
+
+        function gameOverDino() {
+            isDinoPlaying = false;
+            playSound('error');
+            document.getElementById('dino-overlay').classList.remove('hidden');
+            document.getElementById('dino-overlay').innerHTML = `
+                <p class="text-4xl font-black mb-2 text-red-400">Vége!</p>
+                <p class="text-xl font-bold mb-4">Lefutott táv: ${d_score}</p>
+                <button onclick="initDinoGame()" class="btn-3d bg-green-500 px-6 py-3 rounded-xl text-xl font-black border-b-4 border-green-700 mb-2 hover:bg-green-400">Újra (100 🪙)</button>
+                <button onclick="exitDino()" class="btn-3d bg-gray-500 text-white px-6 py-2 rounded-xl text-lg font-bold border-b-4 border-gray-700 hover:bg-gray-400 mt-2">Vissza a menübe</button>
+                <p id="dino-msg" class="text-red-300 font-bold mt-2 hidden">Nincs elég érméd!</p>
+            `;
+            updateMenuDinoBtn(); // update button logic just in case
+        }
     </script>
 </body>
 </html>
