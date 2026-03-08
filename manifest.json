@@ -1,0 +1,17 @@
+{
+    "name": "Matek Kaland",
+    "short_name": "Matek",
+    "description": "Játékos matematika gyakorló 8 éveseknek",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#f0fdf4",
+    "theme_color": "#bbf7d0",
+    "icons": [
+        {
+            "src": "icon.svg",
+            "sizes": "512x512",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}
