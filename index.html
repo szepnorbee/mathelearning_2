@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <!-- PWA Meta Tagek és Ikonok -->
+    <meta name="theme-color" content="#bbf7d0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Matek">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%20512%20512%27%3E%3Crect%20width%3D%27512%27%20height%3D%27512%27%20fill%3D%27%23bbf7d0%27%20rx%3D%27100%27%2F%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2750%25%27%20font-size%3D%27250%27%20text-anchor%3D%27middle%27%20dy%3D%27.3em%27%3E%F0%9F%90%B5%3C%2Ftext%3E%3C%2Fsvg%3E">
+
+    <title>Matek Kaland 8 Éveseknek</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            background-color: #f0fdf4;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', sans-serif;
+            touch-action: manipulation;
+            overflow-x: hidden;
+        }
+
+        /* --- Dinamikus Háttér Stílusok --- */
+        #dynamic-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            overflow: hidden;
+            background-image: radial-gradient(#bbf7d0 2px, transparent 2px);
+            background-size: 30px 30px;
+        }
+        .floating-symbol {
+            position: absolute;
+            color: rgba(34, 197, 94, 0.2); /* Halvány zöld */
+            font-weight: black;
+            user-select: none;
+            animation: floatUp linear infinite;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(110vh) rotate(0deg) scale(0.5); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-10vh) rotate(360deg) scale(1.5); opacity: 0; }
+        }
+
+        /* --- Animációk --- */
+        .bounce { animation: bounce 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both; }
+        .shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        
+        /* Új Slide Animációk a Kérdésváltáshoz */
+        .slide-out-left { animation: slideOutLeft 0.4s ease-in forwards; }
+        .slide-in-right { animation: slideInRight 0.4s ease-out forwards; }
+
+        @keyframes bounce {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        @keyframes slideOutLeft {
+            to { transform: translateX(-150%) rotate(-5deg); opacity: 0; }
+        }
+        @keyframes slideInRight {
+            from { transform: translateX(150%) rotate(5deg); opacity: 0; }
+            to { transform: translateX(0) rotate(0deg); opacity: 1; }
+        }
+
+        .btn-3d {
+            transition: all 0.1s ease;
+            position: relative;
+        }
+        .btn-3d:active { transform: translateY(4px); }
+        
+        .mascot-container { transition: transform 0.3s ease; }
+        .mascot-container:hover { transform: scale(1.1) rotate(5deg); }
+
+        /* Modal pop-in animáció */
+        .modal-enter { animation: bounce 0.6s ease-out forwards; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 text-gray-800">
+
+    <!-- Dinamikus Háttér Container -->
+    <div id="dynamic-bg"></div>
+
+    <!-- Telepítés Gomb (PWA) -->
+    <button id="install-btn" onclick="installApp()" class="hidden fixed top-4 left-4 z-50 bg-blue-500 text-white p-3 rounded-2xl shadow-lg border-2 border-blue-600 font-bold hover:bg-blue-600 transition-colors btn-3d px-4 flex items-center gap-2">
+        📱 <span class="hidden sm:inline">Telepítés</span>
+    </button>
+
+    <!-- Némító Gomb -->
+    <button id="mute-btn" onclick="toggleMute()" class="fixed top-4 right-4 z-50 bg-white p-3 rounded-full shadow-lg border-2 border-gray-200 text-2xl hover:bg-gray-50 transition-colors btn-3d">
+        🔊
+    </button>
+
+    <!-- Főmenü Nézet -->
+    <div id="menu-screen" class="w-full max-w-md flex flex-col items-center bounce z-10">
+        <h1 class="text-5xl font-black text-center text-purple-600 mb-2 drop-shadow-md">Matek Kaland!</h1>
+        <div class="bg-yellow-200 text-yellow-800 px-4 py-2 rounded-xl font-bold mb-4 shadow-sm border-2 border-yellow-400">
+            🏆 Rekordod: <span id="menu-high-score">0</span> pont
+        </div>
+        <p class="text-xl text-center text-gray-600 mb-8 font-bold">Válaszd ki, mit gyakoroljunk! 🚀</p>
+
+        <div class="grid grid-cols-2 gap-4 w-full">
+            <button onclick="startGame('+')" class="btn-3d bg-blue-400 text-white rounded-2xl p-6 text-3xl font-bold border-b-8 border-blue-600 active:border-b-0 flex flex-col items-center">
+                <span>➕</span><span class="text-xl mt-2">Összeadás</span>
+            </button>
+            <button onclick="startGame('-')" class="btn-3d bg-red-400 text-white rounded-2xl p-6 text-3xl font-bold border-b-8 border-red-600 active:border-b-0 flex flex-col items-center">
+                <span>➖</span><span class="text-xl mt-2">Kivonás</span>
+            </button>
+            <button onclick="startGame('*')" class="btn-3d bg-green-400 text-white rounded-2xl p-6 text-3xl font-bold border-b-8 border-green-600 active:border-b-0 flex flex-col items-center">
+                <span>✖️</span><span class="text-xl mt-2">Szorzás</span>
+            </button>
+            <button onclick="startGame('/')" class="btn-3d bg-yellow-400 text-white rounded-2xl p-6 text-3xl font-bold border-b-8 border-yellow-600 active:border-b-0 flex flex-col items-center text-shadow">
+                <span>➗</span><span class="text-xl mt-2">Osztás</span>
+            </button>
+        </div>
+        <button onclick="startGame('mix')" class="btn-3d bg-purple-500 text-white rounded-2xl p-4 text-2xl font-bold border-b-8 border-purple-700 active:border-b-0 mt-4 w-full flex justify-center items-center gap-2">
+            <span>🎲</span> Mindent bele! <span>🎲</span>
+        </button>
+    </div>
+
+    <!-- Játék Nézet -->
+    <div id="game-screen" class="w-full max-w-md hidden flex-col items-center h-full max-h-[800px] justify-between z-10 pt-10 sm:pt-0">
+        
+        <!-- Fejléc: Vissza, Életek, Szint és Pontszám -->
+        <div class="flex flex-col w-full mb-4 gap-2">
+            <div class="flex justify-between items-center w-full">
+                <button id="back-btn" class="btn-3d bg-gray-200 text-gray-700 p-2 rounded-xl border-b-4 border-gray-400 active:border-b-0 text-lg font-bold">
+                    ⬅️ Vissza
+                </button>
+                <div class="text-xl font-black text-blue-600 bg-blue-100 px-3 py-1 rounded-xl border-2 border-blue-300 shadow-sm">
+                    Szint: <span id="level-display">1</span>
+                </div>
+                <div class="bg-yellow-300 text-yellow-800 font-bold px-3 py-2 rounded-xl text-lg border-b-4 border-yellow-500 flex items-center gap-1 shadow-sm">
+                    🏆 <span id="score-display">0</span>
+                </div>
+            </div>
+            <!-- Életek és Haladás -->
+            <div class="flex justify-between items-center w-full bg-white p-3 rounded-2xl shadow-sm border-2 border-gray-100">
+                <div id="lives-display" class="flex gap-1 text-2xl tracking-tighter drop-shadow-sm">❤️❤️❤️</div>
+                <div class="w-1/2 bg-gray-200 rounded-full h-4 relative overflow-hidden border border-gray-300">
+                    <div id="progress-bar" class="bg-green-500 h-4 rounded-full transition-all duration-500 w-0"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Karakter (Mascot) és Üzenet -->
+        <div class="flex flex-col items-center mb-6 mascot-container">
+            <div id="mascot" class="text-7xl drop-shadow-lg mb-2">🐵</div>
+            <div id="feedback-msg" class="text-2xl font-bold text-blue-600 h-8 text-center px-4 py-1 rounded-full bg-white bg-opacity-90 shadow-sm border border-blue-100">
+                Gyerünk! Sikerülni fog!
+            </div>
+        </div>
+
+        <!-- Animálódó Konténer (A kérdés és a gombok csúsznak ki-be) -->
+        <div id="play-area" class="w-full flex flex-col items-center flex-grow">
+            <!-- A Feladat -->
+            <div id="question-box" class="bg-white rounded-3xl shadow-xl w-full p-8 mb-8 border-4 border-dashed border-blue-400 flex justify-center items-center">
+                <h2 id="equation" class="text-6xl font-black text-gray-800 tracking-wider"></h2>
+            </div>
+
+            <!-- Válaszlehetőségek -->
+            <div id="answers-grid" class="grid grid-cols-2 gap-4 w-full mt-auto pb-4">
+                <!-- A gombokat a JavaScript generálja -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Game Over Képernyő (Modal) -->
+    <div id="game-over-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div id="game-over-content" class="bg-white rounded-[2rem] p-8 max-w-sm w-full flex flex-col items-center text-center shadow-2xl border-8 border-purple-400 relative">
+            
+            <div class="absolute -top-12 text-7xl drop-shadow-lg">👻</div>
+            
+            <h2 class="text-4xl font-black text-purple-600 mb-2 mt-4">Játék Vége!</h2>
+            
+            <!-- Csillagok értékelése -->
+            <div id="stars-display" class="text-5xl mb-4 tracking-widest flex gap-2">
+                ⭐ ⭐ ⭐
+            </div>
+            
+            <div class="bg-blue-50 w-full p-4 rounded-2xl border-2 border-blue-200 mb-6">
+                <p class="text-lg font-bold text-gray-600">Elért Pontszám:</p>
+                <p id="final-score" class="text-5xl font-black text-blue-600 mb-2">0</p>
+                <p class="text-sm font-bold text-yellow-600">🏆 Rekord: <span id="final-highscore">0</span></p>
+            </div>
+
+            <div class="flex gap-4 w-full">
+                <button onclick="hideGameOverAndShowMenu()" class="btn-3d flex-1 bg-gray-200 text-gray-700 rounded-xl p-3 text-xl font-bold border-b-4 border-gray-400 active:border-b-0">
+                    Menü
+                </button>
+                <button onclick="restartGame()" class="btn-3d flex-1 bg-green-500 text-white rounded-xl p-3 text-xl font-bold border-b-4 border-green-700 active:border-b-0">
+                    🔄 Újra!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- TÁROLÁS ÉS FIREBASE ---
+        let db, auth, user, userId;
+        let highScore = 0;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'matek-kaland-app';
+
+        async function initFirebase() {
+            try {
+                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+                if (!firebaseConfig) return;
+                
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, async (u) => {
+                    if (u) {
+                        user = u;
+                        userId = u.uid;
+                        await loadHighScore();
+                    }
+                });
+            } catch(e) { console.error("Firebase init hiba:", e); }
+        }
+
+        async function loadHighScore() {
+            if (!user || !db) return;
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'users', userId, 'math_game', 'stats');
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    highScore = docSnap.data().highScore || 0;
+                    document.getElementById('menu-high-score').textContent = highScore;
+                }
+            } catch(e) { console.error("Hiba a mentés betöltésekor:", e); }
+        }
+
+        async function saveHighScore(newScore) {
+            if (!user || !db || newScore <= highScore) return;
+            highScore = newScore;
+            document.getElementById('menu-high-score').textContent = highScore;
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'users', userId, 'math_game', 'stats');
+                await setDoc(docRef, { highScore: highScore }, { merge: true });
+            } catch(e) { console.error("Hiba a mentéskor:", e); }
+        }
+
+        // --- DINAMIKUS HÁTTÉR ---
+        function createFloatingBackground() {
+            const bgContainer = document.getElementById('dynamic-bg');
+            const symbols = ['+', '-', '×', '÷', '=', '?', '1', '2', '3', '8', '9'];
+            
+            // Létrehozunk 20 lebegő elemet
+            for(let i=0; i<20; i++) {
+                let el = document.createElement('div');
+                el.className = 'floating-symbol text-4xl sm:text-6xl';
+                el.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+                
+                // Véletlenszerű pozíció és animációs sebesség
+                let left = Math.random() * 100; // 0-100vw
+                let duration = 10 + Math.random() * 20; // 10-30 másodperc
+                let delay = Math.random() * 15; // Kezdési késleltetés
+                
+                el.style.left = `${left}vw`;
+                el.style.animationDuration = `${duration}s`;
+                el.style.animationDelay = `-${delay}s`; // Negatív, hogy már egyből a képernyőn is legyenek
+                
+                bgContainer.appendChild(el);
+            }
+        }
+
+        // --- HANGOK ÉS NÉMÍTÁS ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let isMuted = false;
+
+        window.toggleMute = function() {
+            isMuted = !isMuted;
+            const btn = document.getElementById('mute-btn');
+            btn.textContent = isMuted ? '🔇' : '🔊';
+            btn.classList.toggle('bg-red-100', isMuted);
+        };
+
+        function playSound(type) {
+            if (isMuted) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (type === 'success') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(523.25, audioCtx.currentTime); 
+                oscillator.frequency.exponentialRampToValueAtTime(1046.50, audioCtx.currentTime + 0.1); 
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.4);
+            } else if (type === 'error') {
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.3);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'levelup') {
+                oscillator.type = 'square';
+                oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
+                oscillator.frequency.setValueAtTime(554.37, audioCtx.currentTime + 0.1);
+                oscillator.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.2);
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime + 0.3);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.6);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.6);
+            } else if (type === 'gameover') {
+                oscillator.type = 'triangle';
+                oscillator.frequency.setValueAtTime(300, audioCtx.currentTime);
+                oscillator.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.8);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.0);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 1.0);
+            }
+        }
+
+        // --- ÁLLAPOT VÁLTOZÓK ---
+        let currentMode = '+'; 
+        let currentOperation = '+'; 
+        let correctAnswer = 0;
+        let score = 0;
+        let isAnswering = false;
+        let level = 1;
+        let lives = 3;
+        let questionsInLevel = 0;
+        const QUESTIONS_PER_LEVEL = 10;
+
+        // UI Elemek
+        const menuScreen = document.getElementById('menu-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const playArea = document.getElementById('play-area');
+        const equationDisplay = document.getElementById('equation');
+        const answersGrid = document.getElementById('answers-grid');
+        const scoreDisplay = document.getElementById('score-display');
+        const mascotDisplay = document.getElementById('mascot');
+        const feedbackMsg = document.getElementById('feedback-msg');
+        const questionBox = document.getElementById('question-box');
+        const levelDisplay = document.getElementById('level-display');
+        const livesDisplay = document.getElementById('lives-display');
+        const progressBar = document.getElementById('progress-bar');
+        
+        // Modal UI Elemek
+        const gameOverModal = document.getElementById('game-over-modal');
+        const gameOverContent = document.getElementById('game-over-content');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const finalHighScoreDisplay = document.getElementById('final-highscore');
+        const starsDisplay = document.getElementById('stars-display');
+        
+        // Globális hivatkozások az inline HTML eseményekhez
+        document.getElementById('back-btn').addEventListener('click', showMenu);
+        window.startGame = startGame;
+        window.hideGameOverAndShowMenu = hideGameOverAndShowMenu;
+        window.restartGame = restartGame;
+
+        const correctMessages = ["Szuper!", "Zseni vagy!", "Hatalmas!", "Így kell ezt!", "Bajnok! 🏆"];
+        const wrongMessages = ["Hoppá!", "Próbáld újra!", "Majdnem...", "Jaj ne! 💔"];
+        const mascots = { normal: "🐵", happy: "🐵🎉", sad: "🙈", thinking: "🐒", dead: "👻" };
+
+        const btnColors = [
+            { bg: "bg-pink-400", border: "border-pink-600" },
+            { bg: "bg-cyan-400", border: "border-cyan-600" },
+            { bg: "bg-orange-400", border: "border-orange-600" },
+            { bg: "bg-lime-400", border: "border-lime-600" }
+        ];
+
+        // Rendszer indítása
+        createFloatingBackground();
+        initFirebase();
+        initPWA();
+
+        // --- FUNKCIÓK ---
+
+        function initPWA() {
+            // 1. Manifest dinamikus létrehozása és befűzése a telepíthetőséghez
+            const manifest = {
+                name: "Matek Kaland",
+                short_name: "Matek",
+                description: "Játékos matematika gyakorló 8 éveseknek",
+                start_url: window.location.href,
+                display: "standalone",
+                background_color: "#f0fdf4",
+                theme_color: "#bbf7d0",
+                icons: [{
+                    src: "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%20512%20512%27%3E%3Crect%20width%3D%27512%27%20height%3D%27512%27%20fill%3D%27%23bbf7d0%27%20rx%3D%27100%27%2F%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2750%25%27%20font-size%3D%27250%27%20text-anchor%3D%27middle%27%20dy%3D%27.3em%27%3E%F0%9F%90%B5%3C%2Ftext%3E%3C%2Fsvg%3E",
+                    sizes: "512x512",
+                    type: "image/svg+xml",
+                    purpose: "any maskable"
+                }]
+            };
+            const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/manifest+json'});
+            const manifestUrl = URL.createObjectURL(manifestBlob);
+            const link = document.createElement('link');
+            link.rel = 'manifest';
+            link.href = manifestUrl;
+            document.head.appendChild(link);
+
+            // 2. Virtuális Service Worker regisztráció
+            if ('serviceWorker' in navigator) {
+                const swCode = `
+                    self.addEventListener('install', (e) => { self.skipWaiting(); });
+                    self.addEventListener('activate', (e) => { e.waitUntil(clients.claim()); });
+                    self.addEventListener('fetch', (e) => {
+                        e.respondWith(fetch(e.request).catch(() => new Response('Matek Kaland - Offline mód. Kérlek csatlakozz az internethez!')));
+                    });
+                `;
+                const swBlob = new Blob([swCode], {type: 'application/javascript'});
+                const swUrl = URL.createObjectURL(swBlob);
+                navigator.serviceWorker.register(swUrl)
+                    .then(() => console.log('PWA Service Worker aktív.'))
+                    .catch(err => console.error('PWA hiba:', err));
+            }
+        }
+
+        // PWA Telepítés eseménykezelő (gomb megjelenítése/elrejtése)
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const installBtn = document.getElementById('install-btn');
+            if (installBtn) installBtn.classList.remove('hidden');
+        });
+
+        window.installApp = async function() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    console.log('App telepítve');
+                }
+                deferredPrompt = null;
+                document.getElementById('install-btn').classList.add('hidden');
+            }
+        };
+
+        function showMenu() {
+            saveHighScore(score);
+            gameScreen.classList.add('hidden');
+            gameScreen.classList.remove('flex');
+            menuScreen.classList.remove('hidden');
+            menuScreen.classList.add('flex', 'bounce');
+        }
+
+        function hideGameOverAndShowMenu() {
+            gameOverModal.classList.add('hidden');
+            showMenu();
+        }
+
+        function restartGame() {
+            gameOverModal.classList.add('hidden');
+            startGame(currentMode); // Újraindítja ugyanazzal a móddal
+        }
+
+        function startGame(mode) {
+            if (!isMuted && audioCtx.state === 'suspended') audioCtx.resume();
+            
+            currentMode = mode;
+            score = 0;
+            level = 1;
+            lives = 3;
+            questionsInLevel = 0;
+            
+            updateScoreDisplay();
+            updateLivesDisplay();
+            updateProgressDisplay();
+            levelDisplay.textContent = level;
+            
+            menuScreen.classList.add('hidden');
+            menuScreen.classList.remove('flex', 'bounce');
+            gameScreen.classList.remove('hidden');
+            gameScreen.classList.add('flex', 'bounce');
+            
+            nextQuestion(false); // Első kérdés animáció nélkül (vagy csak beugorva)
+        }
+
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function generateProblem() {
+            if (currentMode === 'mix') {
+                const ops = ['+', '-', '*', '/'];
+                currentOperation = ops[getRandomInt(0, 3)];
+            } else {
+                currentOperation = currentMode;
+            }
+
+            let a, b, eqString;
+            let diffMulti = 1 + ((level - 1) * 0.2);
+
+            switch(currentOperation) {
+                case '+':
+                    a = getRandomInt(1, Math.floor(30 * diffMulti));
+                    b = getRandomInt(1, Math.floor(20 * diffMulti));
+                    correctAnswer = a + b;
+                    eqString = `${a} + ${b} = ?`;
+                    break;
+                case '-':
+                    a = getRandomInt(10, Math.floor(50 * diffMulti));
+                    b = getRandomInt(1, a); 
+                    correctAnswer = a - b;
+                    eqString = `${a} - ${b} = ?`;
+                    break;
+                case '*':
+                    let maxMul = Math.min(10 + Math.floor(level/2), 15);
+                    a = getRandomInt(1, maxMul);
+                    b = getRandomInt(1, 10);
+                    correctAnswer = a * b;
+                    eqString = `${a} ✖️ ${b} = ?`;
+                    break;
+                case '/':
+                    b = getRandomInt(1, Math.min(10 + Math.floor(level/2), 15)); 
+                    correctAnswer = getRandomInt(1, 10); 
+                    a = b * correctAnswer; 
+                    eqString = `${a} ➗ ${b} = ?`;
+                    break;
+            }
+
+            equationDisplay.textContent = eqString;
+            return correctAnswer;
+        }
+
+        function generateAnswers(correct) {
+            let answers = new Set();
+            answers.add(correct);
+
+            while (answers.size < 4) {
+                let offset = getRandomInt(1, 5) * (Math.random() < 0.5 ? 1 : -1);
+                if (Math.random() > 0.7) {
+                    offset = 10 * (Math.random() < 0.5 ? 1 : -1);
+                }
+                let wrongAnswer = correct + offset;
+                if (wrongAnswer >= 0) {
+                    answers.add(wrongAnswer);
+                }
+            }
+
+            let answersArr = Array.from(answers);
+            for (let i = answersArr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [answersArr[i], answersArr[j]] = [answersArr[j], answersArr[i]];
+            }
+            return answersArr;
+        }
+
+        // Kérdés váltása Slide animációval (ha 'animate' true)
+        function nextQuestion(animate = true) {
+            if (lives <= 0) return; 
+            isAnswering = true; // Zárjuk az interakciót amíg animál
+            
+            mascotDisplay.textContent = mascots.normal;
+            feedbackMsg.textContent = "Mit gondolsz?";
+            feedbackMsg.className = "text-2xl font-bold text-blue-600 h-8 text-center px-4 py-1 rounded-full bg-white bg-opacity-90 shadow-sm border border-blue-100 transition-colors";
+
+            if (animate) {
+                // Kicsúszás balra
+                playArea.classList.remove('slide-in-right', 'bounce');
+                playArea.classList.add('slide-out-left');
+                
+                setTimeout(() => {
+                    prepareNewQuestionData();
+                    // Becsúszás jobbról
+                    playArea.classList.remove('slide-out-left');
+                    playArea.classList.add('slide-in-right');
+                    
+                    setTimeout(() => { isAnswering = false; }, 400); // Engedélyezzük a kattintást
+                }, 400); // 400ms a kicsúszás ideje
+            } else {
+                prepareNewQuestionData();
+                playArea.classList.add('bounce');
+                isAnswering = false;
+            }
+        }
+
+        function prepareNewQuestionData() {
+            const correct = generateProblem();
+            const answers = generateAnswers(correct);
+            renderAnswers(answers, correct);
+        }
+
+        function renderAnswers(answers, correct) {
+            answersGrid.innerHTML = '';
+            answers.forEach((ans, index) => {
+                const color = btnColors[index % btnColors.length];
+                const btn = document.createElement('button');
+                btn.className = `btn-3d ${color.bg} text-white rounded-2xl p-6 text-4xl font-black border-b-8 ${color.border} active:border-b-0 w-full`;
+                btn.textContent = ans;
+                btn.onclick = () => handleAnswer(ans, correct, btn);
+                answersGrid.appendChild(btn);
+            });
+        }
+
+        function handleAnswer(selected, correct, buttonElement) {
+            if (isAnswering || lives <= 0) return; 
+            isAnswering = true;
+
+            if (selected === correct) {
+                playSound('success');
+                score += 10;
+                questionsInLevel++;
+                updateScoreDisplay();
+                updateProgressDisplay();
+                
+                mascotDisplay.textContent = mascots.happy;
+                mascotDisplay.classList.add('bounce');
+                setTimeout(() => mascotDisplay.classList.remove('bounce'), 500);
+
+                feedbackMsg.textContent = correctMessages[getRandomInt(0, correctMessages.length - 1)];
+                feedbackMsg.classList.replace('text-blue-600', 'text-green-600');
+                
+                buttonElement.classList.remove('bg-pink-400', 'bg-cyan-400', 'bg-orange-400', 'bg-lime-400', 'border-pink-600', 'border-cyan-600', 'border-orange-600', 'border-lime-600');
+                buttonElement.classList.add('bg-green-500', 'border-green-700', 'bounce');
+
+                if (questionsInLevel >= QUESTIONS_PER_LEVEL) {
+                    setTimeout(() => handleLevelUp(), 800);
+                } else {
+                    setTimeout(() => nextQuestion(true), 1000);
+                }
+
+            } else {
+                playSound('error');
+                lives--;
+                updateLivesDisplay();
+                
+                if (lives > 0) {
+                    mascotDisplay.textContent = mascots.sad;
+                    feedbackMsg.textContent = wrongMessages[getRandomInt(0, wrongMessages.length - 1)];
+                    feedbackMsg.classList.replace('text-blue-600', 'text-red-600');
+
+                    questionBox.classList.remove('bounce');
+                    void questionBox.offsetWidth;
+                    questionBox.classList.add('shake');
+
+                    buttonElement.classList.add('opacity-50', 'bg-red-500');
+
+                    setTimeout(() => {
+                        buttonElement.classList.remove('opacity-50', 'bg-red-500');
+                        mascotDisplay.textContent = mascots.thinking;
+                        isAnswering = false;
+                    }, 1000);
+                } else {
+                    // Game Over Logika Modal használatával
+                    playSound('gameover');
+                    saveHighScore(score);
+                    showGameOverModal();
+                }
+            }
+        }
+
+        function showGameOverModal() {
+            // Értékelés kiszámítása (Csillagok)
+            let starsHTML = '';
+            if (level >= 5) starsHTML = '⭐ ⭐ ⭐';
+            else if (level >= 3) starsHTML = '⭐ ⭐ <span class="opacity-30 grayscale">⭐</span>';
+            else if (level >= 2 || score > 0) starsHTML = '⭐ <span class="opacity-30 grayscale">⭐ ⭐</span>';
+            else starsHTML = '<span class="opacity-30 grayscale">⭐ ⭐ ⭐</span>';
+            
+            starsDisplay.innerHTML = starsHTML;
+            finalScoreDisplay.textContent = score;
+            finalHighScoreDisplay.textContent = Math.max(score, highScore);
+            
+            gameOverModal.classList.remove('hidden');
+            gameOverContent.classList.remove('modal-enter');
+            void gameOverContent.offsetWidth; // reflow
+            gameOverContent.classList.add('modal-enter');
+        }
+
+        function handleLevelUp() {
+            playSound('levelup');
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#26ccff', '#a25afd', '#ff5e7e', '#88ff5a', '#fcff42', '#ffa62d', '#ff36ff']
+            });
+            
+            level++;
+            questionsInLevel = 0;
+            
+            if (lives < 3) {
+                lives++;
+                updateLivesDisplay();
+            }
+
+            levelDisplay.textContent = level;
+            levelDisplay.parentElement.classList.add('bounce');
+            setTimeout(() => levelDisplay.parentElement.classList.remove('bounce'), 500);
+
+            feedbackMsg.textContent = `Szint ${level}! Szép munka! 🎉`;
+            feedbackMsg.classList.replace('text-green-600', 'text-purple-600');
+            updateProgressDisplay();
+
+            setTimeout(() => nextQuestion(true), 2500);
+        }
+
+        function updateScoreDisplay() {
+            scoreDisplay.textContent = score;
+            scoreDisplay.parentElement.classList.add('bounce');
+            setTimeout(() => scoreDisplay.parentElement.classList.remove('bounce'), 500);
+        }
+
+        function updateLivesDisplay() {
+            let hearts = '';
+            for (let i = 0; i < 3; i++) {
+                hearts += (i < lives) ? '❤️' : '🤍';
+            }
+            livesDisplay.textContent = hearts;
+            livesDisplay.classList.remove('shake', 'bounce');
+            void livesDisplay.offsetWidth;
+            livesDisplay.classList.add('bounce');
+        }
+
+        function updateProgressDisplay() {
+            const percentage = (questionsInLevel / QUESTIONS_PER_LEVEL) * 100;
+            progressBar.style.width = `${percentage}%`;
+        }
+
+    </script>
+</body>
+</html>
